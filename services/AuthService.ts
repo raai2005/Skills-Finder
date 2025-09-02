@@ -1,5 +1,6 @@
 import { TeamMember } from '../models/TeamMember';
 import TeamMemberService from './TeamMemberService';
+import { RegisterUserData } from '@/contexts/AuthContext';
 
 // Simple authentication states
 export type AuthStatus = 'unauthenticated' | 'authenticated' | 'admin';
@@ -8,9 +9,12 @@ export type AuthStatus = 'unauthenticated' | 'authenticated' | 'admin';
 export interface AuthUser {
   id: string;
   name: string;
+  email: string;
   role?: 'admin' | 'user' | 'manager';
   isAuthenticated: boolean;
   isAdmin: boolean;
+  skills: string[];
+  tools: string[];
 }
 
 /**
@@ -34,15 +38,15 @@ class AuthService {
   }
 
   /**
-   * Login with username and password
-   * @param username User's email or username
+   * Login with email and password
+   * @param email User's email
    * @param password User's password
    * @returns Auth status
    */
-  public login(username: string, password: string): { success: boolean; message: string } {
+  public login(email: string, password: string): { success: boolean; message: string } {
     // In a real app, this would validate against a backend service
     // For demo purposes, we'll use these hardcoded credentials
-    if (username === 'admin' && password === 'admin123') {
+    if (email === 'admin@example.com' && password === 'admin123') {
       // Find admin in team members
       const adminMember = this.teamMemberService.getAllMembers().find(m => m.role === 'admin');
       
@@ -50,9 +54,12 @@ class AuthService {
         this.currentUser = {
           id: adminMember.id,
           name: adminMember.name,
+          email: 'admin@example.com',
           role: 'admin',
           isAuthenticated: true,
-          isAdmin: true
+          isAdmin: true,
+          skills: adminMember.skills || [],
+          tools: adminMember.tools || []
         };
         
         // Update last active time
@@ -66,16 +73,19 @@ class AuthService {
     // Try regular user login (for demo only)
     const allMembers = this.teamMemberService.getAllMembers();
     const matchedMember = allMembers.find(m => 
-      m.name.toLowerCase() === username.toLowerCase() && password === 'user123'
+      m.email?.toLowerCase() === email.toLowerCase() && password === 'user123'
     );
     
     if (matchedMember) {
       this.currentUser = {
         id: matchedMember.id,
         name: matchedMember.name,
+        email: email,
         role: matchedMember.role || 'user',
         isAuthenticated: true,
-        isAdmin: matchedMember.role === 'admin'
+        isAdmin: matchedMember.role === 'admin',
+        skills: matchedMember.skills || [],
+        tools: matchedMember.tools || []
       };
       
       // Update last active time
@@ -85,7 +95,78 @@ class AuthService {
       return { success: true, message: 'Login successful!' };
     }
     
-    return { success: false, message: 'Invalid username or password' };
+    return { success: false, message: 'Invalid email or password' };
+  }
+
+  /**
+   * Register a new user
+   * @param userData User registration data
+   * @returns Registration status
+   */
+  public register(userData: RegisterUserData): { success: boolean; message: string } {
+    // Check if email is already in use
+    const allMembers = this.teamMemberService.getAllMembers();
+    const existingMember = allMembers.find(m => 
+      m.email?.toLowerCase() === userData.email.toLowerCase()
+    );
+
+    if (existingMember) {
+      return { success: false, message: 'Email already in use' };
+    }
+
+    // Create a new team member
+    const newMember: TeamMember = {
+      id: `user-${Date.now()}`,
+      name: userData.name,
+      email: userData.email,
+      skills: userData.skills,
+      tools: userData.tools,
+      willingToHelp: true,
+      isActive: true,
+      role: 'user',
+      lastActive: new Date(),
+      borrowedItems: []
+    };
+
+    // Add the new member
+    this.teamMemberService.addMember(newMember);
+
+    // Auto login the new user
+    this.currentUser = {
+      id: newMember.id,
+      name: newMember.name,
+      email: newMember.email,
+      role: newMember.role,
+      isAuthenticated: true,
+      isAdmin: false,
+      skills: newMember.skills,
+      tools: newMember.tools
+    };
+
+    return { success: true, message: 'Registration successful!' };
+  }
+
+  /**
+   * Forgot password functionality
+   * @param email User's email
+   * @returns Forgot password status
+   */
+  public forgotPassword(email: string): { success: boolean; message: string } {
+    // In a real app, this would send a password reset email
+    // For demo purposes, we'll just check if the email exists
+    const allMembers = this.teamMemberService.getAllMembers();
+    const existingMember = allMembers.find(m => 
+      m.email?.toLowerCase() === email.toLowerCase()
+    );
+
+    if (!existingMember) {
+      return { success: false, message: 'Email not found' };
+    }
+
+    return { 
+      success: true, 
+      message: 'Password reset link sent to your email. Please check your inbox.' 
+    };
   }
 
   /**

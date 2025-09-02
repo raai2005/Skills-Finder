@@ -1,6 +1,7 @@
 export type TeamMember = {
   id: string;
   name: string;
+  email: string;
   skills: string[];
   tools: string[];
   willingToHelp: boolean;
