@@ -5,6 +5,7 @@ import { Link, useRouter } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { HelloWave } from '@/components/HelloWave';
+import { SocialAuthButton } from '@/components/SocialAuthButton';
 import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -14,7 +15,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const colorScheme = useColorScheme();
-  const { login } = useAuth();
+  const { login, loginWithGithub, loginWithGoogle } = useAuth();
   const router = useRouter();
 
   const handleLogin = async () => {
@@ -28,9 +29,7 @@ export default function LoginScreen() {
     try {
       const result = await login(email, password);
       
-      if (result.success) {
-        // Login successful, navigation handled by _layout.tsx
-      } else {
+      if (!result.success) {
         Alert.alert('Login Failed', result.message);
       }
     } catch (error) {
@@ -38,6 +37,30 @@ export default function LoginScreen() {
       console.error(error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleGithubLogin = async () => {
+    try {
+      const result = await loginWithGithub();
+      if (!result.success) {
+        Alert.alert('GitHub Login Failed', result.message);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'An unexpected error occurred');
+      console.error(error);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      const result = await loginWithGoogle();
+      if (!result.success) {
+        Alert.alert('Google Login Failed', result.message);
+      }
+    } catch (error) {
+      Alert.alert('Error', 'An unexpected error occurred');
+      console.error(error);
     }
   };
 
@@ -91,9 +114,25 @@ export default function LoginScreen() {
           disabled={isLoading}
         >
           <ThemedText style={styles.buttonText}>
-            {isLoading ? 'Logging in...' : 'Login'}
+            {isLoading ? 'Logging in...' : 'Login with Email'}
           </ThemedText>
         </TouchableOpacity>
+        
+        <ThemedView style={styles.divider}>
+          <ThemedView style={styles.dividerLine} />
+          <ThemedText style={styles.dividerText}>OR</ThemedText>
+          <ThemedView style={styles.dividerLine} />
+        </ThemedView>
+        
+        <SocialAuthButton 
+          provider="github" 
+          onPress={handleGithubLogin} 
+        />
+        
+        <SocialAuthButton 
+          provider="google" 
+          onPress={handleGoogleLogin} 
+        />
         
         <Link href="/(auth)/forgot-password" asChild>
           <TouchableOpacity style={styles.linkButton}>
@@ -175,5 +214,21 @@ const styles = StyleSheet.create({
   registerLink: {
     fontWeight: 'bold',
     color: Colors.light.tint,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+    width: '100%',
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e0e0e0',
+  },
+  dividerText: {
+    marginHorizontal: 10,
+    fontSize: 14,
+    color: '#888888',
   },
 });

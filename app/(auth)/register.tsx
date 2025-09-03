@@ -2,7 +2,21 @@ import React, { useState } from 'react';
 import { StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { Link, router } from 'expo-router';
 
-import { ThemedText } from '@/components/ThemedText';
+import { ThemedText } from '@/c          <ThemedView style={styles.loginContainer}>
+            <ThemedText>Already have an account? </ThemedText>
+            <Link href="/(auth)/login" asChild>
+              <TouchableOpacity>
+                <ThemedText style={styles.loginLink}>Login</ThemedText>
+              </TouchableOpacity>
+            </Link>
+          </ThemedView>
+          
+          <ThemedView style={styles.socialLoginNote}>
+            <ThemedText style={styles.socialLoginNoteText}>
+              You can also register using GitHub or Google from the login screen.
+            </ThemedText>
+          </ThemedView>
+        </ThemedView>/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/Colors';
@@ -214,6 +228,12 @@ export default function RegisterScreen() {
               </TouchableOpacity>
             </Link>
           </ThemedView>
+          
+          <ThemedView style={styles.socialLoginNote}>
+            <ThemedText style={styles.socialLoginNoteText}>
+              You can also register using GitHub or Google from the login screen.
+            </ThemedText>
+          </ThemedView>
         </ThemedView>
       </ThemedView>
     </ScrollView>
@@ -282,5 +302,15 @@ const styles = StyleSheet.create({
   loginLink: {
     fontWeight: 'bold',
     color: Colors.light.tint,
+  },
+  socialLoginNote: {
+    marginTop: 10,
+    marginBottom: 30,
+    alignItems: 'center',
+  },
+  socialLoginNoteText: {
+    fontSize: 12,
+    color: '#888888',
+    textAlign: 'center',
   },
 });

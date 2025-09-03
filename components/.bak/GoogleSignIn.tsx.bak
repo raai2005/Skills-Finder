@@ -1,0 +1,76 @@
+import React from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/contexts/AuthContext';
+import { useThemeColor } from '@/hooks/useThemeColor';
+
+export function GoogleSignIn() {
+  const { loginWithGoogle } = useAuth();
+  const backgroundColor = useThemeColor({}, 'background');
+  const textColor = useThemeColor({}, 'text');
+  
+  const handleGoogleSignIn = async () => {
+    try {
+      const result = await loginWithGoogle();
+      if (!result.success) {
+        // Handle error
+        console.error('Google sign-in failed:', result.message);
+      }
+    } catch (error) {
+      console.error('Google sign-in error:', error);
+    }
+  };
+  
+  return (
+    <View style={styles.container}>
+      <Pressable 
+        style={({pressed}) => [
+          styles.button,
+          {
+            backgroundColor: pressed ? '#D32F2F' : '#EA4335',
+            borderColor: pressed ? '#B71C1C' : '#D32F2F',
+          }
+        ]}
+        onPress={handleGoogleSignIn}
+      >
+        <Ionicons name="logo-google" size={24} color="#ffffff" style={styles.icon} />
+        <Text style={styles.buttonText}>Continue with Google</Text>
+      </Pressable>
+      
+      <Text style={[styles.disclaimer, { color: textColor }]}>
+        By signing in with Google, you'll get personalized recommendations based on your skills.
+      </Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    width: '100%',
+    marginVertical: 16,
+  },
+  button: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  buttonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  icon: {
+    marginRight: 12,
+  },
+  disclaimer: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 8,
+    paddingHorizontal: 16,
+  },
+});
+
+export default GoogleSignIn;

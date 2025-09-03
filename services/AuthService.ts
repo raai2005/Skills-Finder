@@ -1,6 +1,21 @@
 import { TeamMember } from '../models/TeamMember';
 import TeamMemberService from './TeamMemberService';
 import { RegisterUserData } from '@/contexts/AuthContext';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signOut, 
+  sendPasswordResetEmail,
+  GithubAuthProvider,
+  GoogleAuthProvider,
+  signInWithPopup,
+  onAuthStateChanged,
+  User as FirebaseUser,
+  updateProfile,
+  OAuthCredential
+} from 'firebase/auth';
+import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { auth, firestore } from '../firebaseConfig';
 
 // Simple authentication states
 export type AuthStatus = 'unauthenticated' | 'authenticated' | 'admin';
@@ -13,13 +28,14 @@ export interface AuthUser {
   role?: 'admin' | 'user' | 'manager';
   isAuthenticated: boolean;
   isAdmin: boolean;
+  photoURL?: string;
   skills: string[];
   tools: string[];
+  githubUsername?: string;
 }
 
 /**
- * Simple authentication service for the Skills Finder app
- * In a real app, this would use secure storage, tokens, etc.
+ * Firebase authentication service for the Skills Finder app
  */
 class AuthService {
   private static instance: AuthService;
@@ -28,6 +44,18 @@ class AuthService {
 
   private constructor() {
     this.teamMemberService = TeamMemberService.getInstance();
+    
+    // Set up auth state listener
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        // User is signed in
+        const userProfile = await this.getUserProfile(user.uid);
+        this.currentUser = this.mapFirebaseUserToAuthUser(user, userProfile);
+      } else {
+        // User is signed out
+        this.currentUser = null;
+      }
+    });
   }
 
   public static getInstance(): AuthService {
@@ -38,64 +66,246 @@ class AuthService {
   }
 
   /**
+   * Map Firebase user to our app's user model
+   */
+  private mapFirebaseUserToAuthUser(firebaseUser: FirebaseUser, userProfile: any): AuthUser {
+    return {
+      id: firebaseUser.uid,
+      name: firebaseUser.displayName || userProfile?.name || 'User',
+      email: firebaseUser.email || '',
+      photoURL: firebaseUser.photoURL || undefined,
+      isAuthenticated: true,
+      isAdmin: userProfile?.role === 'admin',
+      role: userProfile?.role || 'user',
+      skills: userProfile?.skills || [],
+      tools: userProfile?.tools || [],
+      githubUsername: userProfile?.githubUsername,
+    };
+  }
+
+  /**
    * Login with email and password
    * @param email User's email
    * @param password User's password
    * @returns Auth status
    */
-  public login(email: string, password: string): { success: boolean; message: string } {
-    // In a real app, this would validate against a backend service
-    // For demo purposes, we'll use these hardcoded credentials
-    if (email === 'admin@example.com' && password === 'admin123') {
-      // Find admin in team members
-      const adminMember = this.teamMemberService.getAllMembers().find(m => m.role === 'admin');
+  public async login(email: string, password: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // For backward compatibility, keep the hardcoded admin check
+      if (email === 'admin@example.com' && password === 'admin123') {
+        // Find admin in team members
+        const adminMember = this.teamMemberService.getAllMembers().find(m => m.role === 'admin');
+        
+        if (adminMember) {
+          this.currentUser = {
+            id: adminMember.id,
+            name: adminMember.name,
+            email: 'admin@example.com',
+            role: 'admin',
+            isAuthenticated: true,
+            isAdmin: true,
+            skills: adminMember.skills || [],
+            tools: adminMember.tools || []
+          };
+          
+          // Update last active time
+          adminMember.lastActive = new Date();
+          this.teamMemberService.updateMember(adminMember);
+          
+          return { success: true, message: 'Admin login successful!' };
+        }
+      }
       
-      if (adminMember) {
+      // Use Firebase authentication
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      // Get user profile from Firestore
+      const userProfile = await this.getUserProfile(user.uid);
+      
+      // Set the current user
+      this.currentUser = this.mapFirebaseUserToAuthUser(user, userProfile);
+      
+      return { success: true, message: 'Login successful!' };
+    } catch (error: any) {
+      console.error('Error in login:', error);
+      
+      // Try regular user login (for backward compatibility)
+      const allMembers = this.teamMemberService.getAllMembers();
+      const matchedMember = allMembers.find(m => 
+        m.email?.toLowerCase() === email.toLowerCase() && password === 'user123'
+      );
+      
+      if (matchedMember) {
         this.currentUser = {
-          id: adminMember.id,
-          name: adminMember.name,
-          email: 'admin@example.com',
-          role: 'admin',
+          id: matchedMember.id,
+          name: matchedMember.name,
+          email: email,
+          role: matchedMember.role || 'user',
           isAuthenticated: true,
-          isAdmin: true,
-          skills: adminMember.skills || [],
-          tools: adminMember.tools || []
+          isAdmin: matchedMember.role === 'admin',
+          skills: matchedMember.skills || [],
+          tools: matchedMember.tools || []
         };
         
         // Update last active time
-        adminMember.lastActive = new Date();
-        this.teamMemberService.updateMember(adminMember);
+        matchedMember.lastActive = new Date();
+        this.teamMemberService.updateMember(matchedMember);
         
         return { success: true, message: 'Login successful!' };
       }
-    }
-    
-    // Try regular user login (for demo only)
-    const allMembers = this.teamMemberService.getAllMembers();
-    const matchedMember = allMembers.find(m => 
-      m.email?.toLowerCase() === email.toLowerCase() && password === 'user123'
-    );
-    
-    if (matchedMember) {
-      this.currentUser = {
-        id: matchedMember.id,
-        name: matchedMember.name,
-        email: email,
-        role: matchedMember.role || 'user',
-        isAuthenticated: true,
-        isAdmin: matchedMember.role === 'admin',
-        skills: matchedMember.skills || [],
-        tools: matchedMember.tools || []
+      
+      return { 
+        success: false, 
+        message: error.message || 'Invalid email or password' 
       };
-      
-      // Update last active time
-      matchedMember.lastActive = new Date();
-      this.teamMemberService.updateMember(matchedMember);
-      
-      return { success: true, message: 'Login successful!' };
     }
-    
-    return { success: false, message: 'Invalid email or password' };
+  }
+
+  /**
+   * Login with GitHub
+   */
+  public async loginWithGithub(): Promise<{ success: boolean; message: string; user?: AuthUser }> {
+    try {
+      const provider = new GithubAuthProvider();
+      provider.addScope('user');
+      provider.addScope('repo');
+      
+      const result = await signInWithPopup(auth, provider);
+      
+      // Get GitHub credentials
+      const credential = GithubAuthProvider.credentialFromResult(result) as OAuthCredential;
+      const token = credential.accessToken;
+      
+      // The signed-in user info
+      const user = result.user;
+      const githubUsername = user.reloadUserInfo?.screenName;
+      
+      // Check if user exists in Firestore
+      let userProfile = await this.getUserProfile(user.uid);
+      
+      if (!userProfile) {
+        // Create new user profile
+        userProfile = {
+          uid: user.uid,
+          name: user.displayName || 'GitHub User',
+          email: user.email || '',
+          photoURL: user.photoURL,
+          role: 'user',
+          githubUsername,
+          githubAccessToken: token,
+          skills: [],
+          tools: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        
+        // Save to Firestore
+        await setDoc(doc(firestore, 'users', user.uid), userProfile);
+      } else {
+        // Update existing profile with GitHub info
+        await updateDoc(doc(firestore, 'users', user.uid), {
+          githubUsername,
+          githubAccessToken: token,
+          photoURL: user.photoURL,
+          updatedAt: new Date(),
+        });
+        
+        // Merge with existing data
+        userProfile = {
+          ...userProfile,
+          githubUsername,
+          githubAccessToken: token,
+          photoURL: user.photoURL,
+        };
+      }
+      
+      // Set current user
+      this.currentUser = this.mapFirebaseUserToAuthUser(user, userProfile);
+      
+      return { 
+        success: true, 
+        message: 'GitHub login successful!',
+        user: this.currentUser
+      };
+    } catch (error: any) {
+      console.error('Error in GitHub login:', error);
+      return { 
+        success: false, 
+        message: error.message || 'Failed to log in with GitHub.' 
+      };
+    }
+  }
+
+  /**
+   * Login with Google
+   */
+  public async loginWithGoogle(): Promise<{ success: boolean; message: string; user?: AuthUser }> {
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('profile');
+      provider.addScope('email');
+      
+      const result = await signInWithPopup(auth, provider);
+      
+      // Get Google credentials
+      const credential = GoogleAuthProvider.credentialFromResult(result) as OAuthCredential;
+      const token = credential.accessToken;
+      
+      // The signed-in user info
+      const user = result.user;
+      
+      // Check if user exists in Firestore
+      let userProfile = await this.getUserProfile(user.uid);
+      
+      if (!userProfile) {
+        // Create new user profile
+        userProfile = {
+          uid: user.uid,
+          name: user.displayName || 'Google User',
+          email: user.email || '',
+          photoURL: user.photoURL,
+          role: 'user',
+          googleAccessToken: token,
+          skills: [],
+          tools: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        
+        // Save to Firestore
+        await setDoc(doc(firestore, 'users', user.uid), userProfile);
+      } else {
+        // Update existing profile with Google info
+        await updateDoc(doc(firestore, 'users', user.uid), {
+          googleAccessToken: token,
+          photoURL: user.photoURL || userProfile.photoURL,
+          updatedAt: new Date(),
+        });
+        
+        // Merge with existing data
+        userProfile = {
+          ...userProfile,
+          googleAccessToken: token,
+          photoURL: user.photoURL || userProfile.photoURL,
+        };
+      }
+      
+      // Set current user
+      this.currentUser = this.mapFirebaseUserToAuthUser(user, userProfile);
+      
+      return { 
+        success: true, 
+        message: 'Google login successful!',
+        user: this.currentUser
+      };
+    } catch (error: any) {
+      console.error('Error in Google login:', error);
+      return { 
+        success: false, 
+        message: error.message || 'Failed to log in with Google.' 
+      };
+    }
   }
 
   /**
@@ -103,47 +313,77 @@ class AuthService {
    * @param userData User registration data
    * @returns Registration status
    */
-  public register(userData: RegisterUserData): { success: boolean; message: string } {
-    // Check if email is already in use
-    const allMembers = this.teamMemberService.getAllMembers();
-    const existingMember = allMembers.find(m => 
-      m.email?.toLowerCase() === userData.email.toLowerCase()
-    );
-
-    if (existingMember) {
-      return { success: false, message: 'Email already in use' };
+  public async register(userData: RegisterUserData): Promise<{ success: boolean; message: string }> {
+    try {
+      // Create the user in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(
+        auth, 
+        userData.email, 
+        userData.password
+      );
+      
+      const user = userCredential.user;
+      
+      // Update the user's profile
+      await updateProfile(user, {
+        displayName: userData.name,
+      });
+      
+      // Create a user document in Firestore
+      await setDoc(doc(firestore, 'users', user.uid), {
+        uid: user.uid,
+        name: userData.name,
+        email: userData.email,
+        role: 'user',
+        skills: userData.skills || [],
+        tools: userData.tools || [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      
+      // For backward compatibility, also create a team member
+      const newMember: TeamMember = {
+        id: user.uid,
+        name: userData.name,
+        email: userData.email,
+        skills: userData.skills,
+        tools: userData.tools,
+        willingToHelp: true,
+        isActive: true,
+        role: 'user',
+        lastActive: new Date(),
+        borrowedItems: []
+      };
+      
+      // Add the new member
+      this.teamMemberService.addMember(newMember);
+      
+      // Set the current user
+      this.currentUser = {
+        id: user.uid,
+        name: userData.name,
+        email: userData.email,
+        isAuthenticated: true,
+        isAdmin: false,
+        role: 'user',
+        skills: userData.skills || [],
+        tools: userData.tools || [],
+      };
+      
+      return { success: true, message: 'Registration successful!' };
+    } catch (error: any) {
+      console.error('Error in registration:', error);
+      
+      // Check if email already exists (fallback method)
+      if (error.code === 'auth/email-already-in-use') {
+        return { success: false, message: 'Email already in use' };
+      }
+      
+      return { 
+        success: false, 
+        message: error.message || 'Failed to register. Please try again.' 
+      };
     }
-
-    // Create a new team member
-    const newMember: TeamMember = {
-      id: `user-${Date.now()}`,
-      name: userData.name,
-      email: userData.email,
-      skills: userData.skills,
-      tools: userData.tools,
-      willingToHelp: true,
-      isActive: true,
-      role: 'user',
-      lastActive: new Date(),
-      borrowedItems: []
-    };
-
-    // Add the new member
-    this.teamMemberService.addMember(newMember);
-
-    // Auto login the new user
-    this.currentUser = {
-      id: newMember.id,
-      name: newMember.name,
-      email: newMember.email,
-      role: newMember.role,
-      isAuthenticated: true,
-      isAdmin: false,
-      skills: newMember.skills,
-      tools: newMember.tools
-    };
-
-    return { success: true, message: 'Registration successful!' };
   }
 
   /**
@@ -151,29 +391,95 @@ class AuthService {
    * @param email User's email
    * @returns Forgot password status
    */
-  public forgotPassword(email: string): { success: boolean; message: string } {
-    // In a real app, this would send a password reset email
-    // For demo purposes, we'll just check if the email exists
-    const allMembers = this.teamMemberService.getAllMembers();
-    const existingMember = allMembers.find(m => 
-      m.email?.toLowerCase() === email.toLowerCase()
-    );
-
-    if (!existingMember) {
-      return { success: false, message: 'Email not found' };
+  public async forgotPassword(email: string): Promise<{ success: boolean; message: string }> {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      return { success: true, message: 'Password reset email sent!' };
+    } catch (error: any) {
+      console.error('Error in password reset:', error);
+      
+      // Fallback for mock data
+      const allMembers = this.teamMemberService.getAllMembers();
+      const existingMember = allMembers.find(m => 
+        m.email?.toLowerCase() === email.toLowerCase()
+      );
+  
+      if (existingMember) {
+        return { 
+          success: true, 
+          message: 'Password reset link sent to your email. Please check your inbox.' 
+        };
+      }
+      
+      return { 
+        success: false, 
+        message: error.message || 'Failed to send password reset email.' 
+      };
     }
-
-    return { 
-      success: true, 
-      message: 'Password reset link sent to your email. Please check your inbox.' 
-    };
   }
 
   /**
    * Logout the current user
    */
-  public logout(): void {
-    this.currentUser = null;
+  public async logout(): Promise<void> {
+    try {
+      await signOut(auth);
+      this.currentUser = null;
+    } catch (error) {
+      console.error('Error in logout:', error);
+      // Fallback to simple logout
+      this.currentUser = null;
+    }
+  }
+
+  /**
+   * Get user profile from Firestore
+   */
+  public async getUserProfile(userId: string): Promise<any> {
+    try {
+      const docRef = doc(firestore, 'users', userId);
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        return docSnap.data();
+      } else {
+        console.log('No user profile found!');
+        return null;
+      }
+    } catch (error) {
+      console.error('Error getting user profile:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Update user profile
+   */
+  public async updateUserProfile(userId: string, profileData: Partial<AuthUser>): Promise<boolean> {
+    try {
+      const docRef = doc(firestore, 'users', userId);
+      
+      // Prepare update data (remove id and authentication status)
+      const { id, isAuthenticated, isAdmin, ...updateData } = profileData;
+      
+      await updateDoc(docRef, {
+        ...updateData,
+        updatedAt: new Date()
+      });
+      
+      // Update current user if it's the logged-in user
+      if (this.currentUser && this.currentUser.id === userId) {
+        this.currentUser = {
+          ...this.currentUser,
+          ...profileData
+        };
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error updating user profile:', error);
+      return false;
+    }
   }
 
   /**
@@ -199,6 +505,77 @@ class AuthService {
   public isAdmin(): boolean {
     return this.currentUser !== null && this.currentUser.isAdmin;
   }
+  
+  /**
+   * Find users by skills
+   */
+  public async findUsersBySkills(skills: string[]): Promise<AuthUser[]> {
+    try {
+      if (!skills.length) return [];
+      
+      const usersRef = collection(firestore, 'users');
+      const usersList: AuthUser[] = [];
+      
+      // For each skill, find users that have it
+      // Note: In a real app, you'd use a more efficient query
+      for (const skill of skills) {
+        const q = query(
+          usersRef, 
+          where('skills', 'array-contains', skill)
+        );
+        
+        const querySnapshot = await getDocs(q);
+        querySnapshot.forEach(doc => {
+          const userData = doc.data();
+          
+          // Check if this user is already in our list
+          const existingUser = usersList.find(u => u.id === userData.uid);
+          if (!existingUser) {
+            usersList.push({
+              id: userData.uid,
+              name: userData.name,
+              email: userData.email,
+              role: userData.role,
+              isAuthenticated: true,
+              isAdmin: userData.role === 'admin',
+              photoURL: userData.photoURL,
+              skills: userData.skills || [],
+              tools: userData.tools || [],
+              githubUsername: userData.githubUsername,
+            });
+          }
+        });
+      }
+      
+      return usersList;
+    } catch (error) {
+      console.error('Error finding users by skills:', error);
+      
+      // Fallback to team member service
+      try {
+        const allMembers = this.teamMemberService.getAllMembers();
+        const matchingMembers = allMembers.filter(member => 
+          member.skills?.some(skill => skills.includes(skill))
+        );
+        
+        return matchingMembers.map(member => ({
+          id: member.id,
+          name: member.name,
+          email: member.email || '',
+          role: member.role,
+          isAuthenticated: true,
+          isAdmin: member.role === 'admin',
+          skills: member.skills || [],
+          tools: member.tools || []
+        }));
+      } catch (fallbackError) {
+        console.error('Fallback error finding users by skills:', fallbackError);
+        return [];
+      }
+    }
+  }
 }
+
+export default AuthService;
 
 export default AuthService;

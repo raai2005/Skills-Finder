@@ -1,6 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Slot, Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 import { useEffect } from 'react';
@@ -19,13 +19,19 @@ function RootLayoutNav() {
     // Check if the user is authenticated
     const inAuthGroup = segments[0] === '(auth)';
     
-    if (!isAuthenticated && !inAuthGroup) {
-      // Redirect to the login page if not authenticated and not in the auth group
-      router.replace('/(auth)/login');
-    } else if (isAuthenticated && inAuthGroup) {
-      // Redirect to the profile page if authenticated and in the auth group
-      router.replace('/(tabs)');
-    }
+    // Use setTimeout to ensure the Root Layout is fully mounted before navigation
+    const navigateAfterMounted = setTimeout(() => {
+      if (!isAuthenticated && !inAuthGroup) {
+        // Redirect to the login page if not authenticated and not in the auth group
+        router.replace('/(auth)/login');
+      } else if (isAuthenticated && inAuthGroup) {
+        // Redirect to the profile page if authenticated and in the auth group
+        router.replace('/(tabs)');
+      }
+    }, 100);
+    
+    // Clean up timeout if component unmounts
+    return () => clearTimeout(navigateAfterMounted);
   }, [isAuthenticated, segments, router]);
 
   return (
@@ -48,7 +54,7 @@ export default function RootLayout() {
 
   if (!loaded) {
     // Async font loading only occurs in development.
-    return null;
+    return <Slot />;
   }
 
   return (
