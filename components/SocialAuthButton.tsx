@@ -7,6 +7,8 @@ type Provider = 'github' | 'google';
 interface SocialAuthButtonProps {
   provider: Provider;
   onPress: () => Promise<void>;
+  style?: any;
+  disabled?: boolean;
 }
 
 interface ProviderConfig {
@@ -18,7 +20,6 @@ interface ProviderConfig {
     border: string;
     pressedBorder: string;
   };
-  disclaimer: string;
 }
 
 const providerConfigs: Record<Provider, ProviderConfig> = {
@@ -31,7 +32,6 @@ const providerConfigs: Record<Provider, ProviderConfig> = {
       border: '#1b1f23',
       pressedBorder: '#000000',
     },
-    disclaimer: "By signing in with GitHub, you'll be able to share your skills and repositories with other users.",
   },
   google: {
     label: 'Continue with Google',
@@ -42,14 +42,14 @@ const providerConfigs: Record<Provider, ProviderConfig> = {
       border: '#D32F2F',
       pressedBorder: '#B71C1C',
     },
-    disclaimer: "By signing in with Google, you'll get personalized recommendations based on your skills.",
   },
 };
 
-export function SocialAuthButton({ provider, onPress }: SocialAuthButtonProps) {
+export function SocialAuthButton({ provider, onPress, style, disabled }: SocialAuthButtonProps) {
   const config = providerConfigs[provider];
   
   const handlePress = async () => {
+    if (disabled) return;
     try {
       await onPress();
     } catch (error) {
@@ -58,25 +58,30 @@ export function SocialAuthButton({ provider, onPress }: SocialAuthButtonProps) {
   };
   
   return (
-    <View style={styles.container}>
-      <Pressable 
-        style={({pressed}) => [
-          styles.button,
-          {
-            backgroundColor: pressed ? config.colors.pressed : config.colors.default,
-            borderColor: pressed ? config.colors.pressedBorder : config.colors.border,
-          }
-        ]}
-        onPress={handlePress}
-      >
-        <Ionicons name={config.icon as any} size={24} color="#ffffff" style={styles.icon} />
-        <Text style={styles.buttonText}>{config.label}</Text>
-      </Pressable>
-      
-      <Text style={styles.disclaimer}>
-        {config.disclaimer}
-      </Text>
-    </View>
+    <Pressable 
+      disabled={!!disabled}
+      style={({pressed}) => [
+        styles.button,
+        {
+          backgroundColor: disabled
+            ? '#9e9e9e'
+            : pressed
+            ? config.colors.pressed
+            : config.colors.default,
+          borderColor: disabled
+            ? '#9e9e9e'
+            : pressed
+            ? config.colors.pressedBorder
+            : config.colors.border,
+          opacity: disabled ? 0.7 : 1,
+        },
+        style
+      ]}
+      onPress={handlePress}
+    >
+      <Ionicons name={config.icon as any} size={24} color="#ffffff" style={styles.icon} />
+      <Text style={styles.buttonText}>{config.label}</Text>
+    </Pressable>
   );
 }
 
@@ -92,6 +97,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
+    marginVertical: 8,
   },
   buttonText: {
     color: '#ffffff',
@@ -99,7 +105,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   icon: {
-    marginRight: 12,
+    marginRight: 10,
   },
   disclaimer: {
     fontSize: 12,

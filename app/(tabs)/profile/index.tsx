@@ -144,36 +144,40 @@ export default function ProfileScreen() {
           </ThemedView>
         </ThemedView>
         
-        <ThemedView style={styles.menuSection}>
-          <Link href={'/(tabs)/profile/settings' as any} asChild>
-            <TouchableOpacity style={styles.menuItem}>
+        <ThemedView style={styles.section}>
+          <ThemedText style={styles.sectionTitle}>Settings</ThemedText>
+          
+          <ThemedView style={styles.menuSection}>
+            <Link href={'/(tabs)/profile/settings' as any} asChild>
+              <TouchableOpacity style={styles.menuItem}>
+                <Ionicons 
+                  name="settings-outline" 
+                  size={24} 
+                  color={Colors[colorScheme ?? 'light'].text} 
+                />
+                <ThemedText style={styles.menuItemText}>Settings</ThemedText>
+                <Ionicons 
+                  name="chevron-forward" 
+                  size={20} 
+                  color={Colors[colorScheme ?? 'light'].text} 
+                />
+              </TouchableOpacity>
+            </Link>
+            
+            <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
               <Ionicons 
-                name="settings-outline" 
+                name="log-out-outline" 
                 size={24} 
-                color={Colors[colorScheme ?? 'light'].text} 
+                color={Colors[colorScheme ?? 'light'].error} 
               />
-              <ThemedText style={styles.menuItemText}>Settings</ThemedText>
+              <ThemedText style={[styles.menuItemText, { color: Colors[colorScheme ?? 'light'].error }]}>Logout</ThemedText>
               <Ionicons 
                 name="chevron-forward" 
                 size={20} 
-                color={Colors[colorScheme ?? 'light'].text} 
+                color={Colors[colorScheme ?? 'light'].error} 
               />
             </TouchableOpacity>
-          </Link>
-          
-          <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
-            <Ionicons 
-              name="log-out-outline" 
-              size={24} 
-              color={Colors[colorScheme ?? 'light'].error} 
-            />
-            <ThemedText style={[styles.menuItemText, { color: Colors[colorScheme ?? 'light'].error }]}>Logout</ThemedText>
-            <Ionicons 
-              name="chevron-forward" 
-              size={20} 
-              color={Colors[colorScheme ?? 'light'].error} 
-            />
-          </TouchableOpacity>
+          </ThemedView>
         </ThemedView>
       </ScrollView>
     </>

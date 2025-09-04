@@ -5,6 +5,7 @@ const MOCK_TEAM_MEMBERS: TeamMember[] = [
   {
     id: '1',
     name: 'Alice Smith',
+    email: 'alice@example.com',
     skills: ['React Native', 'TypeScript', 'UI Design'],
     tools: ['MacBook Pro', 'Figma License', 'iPhone'],
     willingToHelp: true,
@@ -16,6 +17,7 @@ const MOCK_TEAM_MEMBERS: TeamMember[] = [
   {
     id: '2',
     name: 'Bob Johnson',
+    email: 'bob@example.com',
     skills: ['Python', 'Data Science', 'Machine Learning'],
     tools: ['GPU Server', 'Jupyter', 'Scientific Calculator'],
     willingToHelp: true,
@@ -27,6 +29,7 @@ const MOCK_TEAM_MEMBERS: TeamMember[] = [
   {
     id: '3',
     name: 'Charlie Kim',
+    email: 'charlie@example.com',
     skills: ['Java', 'Android', 'Kotlin'],
     tools: ['Android Device', 'Soldering Iron', 'Projector'],
     willingToHelp: false,
@@ -38,6 +41,7 @@ const MOCK_TEAM_MEMBERS: TeamMember[] = [
   {
     id: '4',
     name: 'Diana Chen',
+    email: 'diana@example.com',
     skills: ['Project Management', 'Agile', 'Leadership'],
     tools: ['Meeting Room Access', 'Whiteboard', 'Printer'],
     willingToHelp: true,

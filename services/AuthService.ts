@@ -14,8 +14,8 @@ import {
   updateProfile,
   OAuthCredential
 } from 'firebase/auth';
+import { auth, firestore, firebaseConfigured } from '../firebase';
 import { doc, setDoc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { auth, firestore } from '../firebaseConfig';
 
 // Simple authentication states
 export type AuthStatus = 'unauthenticated' | 'authenticated' | 'admin';
@@ -45,17 +45,19 @@ class AuthService {
   private constructor() {
     this.teamMemberService = TeamMemberService.getInstance();
     
-    // Set up auth state listener
-    onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // User is signed in
-        const userProfile = await this.getUserProfile(user.uid);
-        this.currentUser = this.mapFirebaseUserToAuthUser(user, userProfile);
-      } else {
-        // User is signed out
-        this.currentUser = null;
-      }
-    });
+    // Set up auth state listener only if Firebase is configured
+    if (firebaseConfigured && auth) {
+      onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
+        if (user) {
+          const userProfile = await this.getUserProfile(user.uid);
+          this.currentUser = this.mapFirebaseUserToAuthUser(user, userProfile);
+        } else {
+          this.currentUser = null;
+        }
+      });
+    } else {
+      console.warn('Firebase not configured; running in fallback/auth-lite mode.');
+    }
   }
 
   public static getInstance(): AuthService {
@@ -68,7 +70,7 @@ class AuthService {
   /**
    * Map Firebase user to our app's user model
    */
-  private mapFirebaseUserToAuthUser(firebaseUser: FirebaseUser, userProfile: any): AuthUser {
+  private mapFirebaseUserToAuthUser(firebaseUser: FirebaseUser, userProfile: Record<string, any>): AuthUser {
     return {
       id: firebaseUser.uid,
       name: firebaseUser.displayName || userProfile?.name || 'User',
@@ -116,17 +118,44 @@ class AuthService {
         }
       }
       
-      // Use Firebase authentication
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      // Use Firebase authentication when configured
+      if (firebaseConfigured && auth) {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        
+        // Get user profile from Firestore
+        const userProfile = await this.getUserProfile(user.uid);
+        
+        // Set the current user
+        this.currentUser = this.mapFirebaseUserToAuthUser(user, userProfile);
+        
+        return { success: true, message: 'Login successful!' };
+      }
+      // If not configured, use legacy/mock flow
+      const allMembers = this.teamMemberService.getAllMembers();
+      const matchedMember = allMembers.find(m => 
+        m.email?.toLowerCase() === email.toLowerCase() && password === 'user123'
+      );
       
-      // Get user profile from Firestore
-      const userProfile = await this.getUserProfile(user.uid);
+      if (matchedMember) {
+        this.currentUser = {
+          id: matchedMember.id,
+          name: matchedMember.name,
+          email: email,
+          role: matchedMember.role || 'user',
+          isAuthenticated: true,
+          isAdmin: matchedMember.role === 'admin',
+          skills: matchedMember.skills || [],
+          tools: matchedMember.tools || []
+        };
+        
+        matchedMember.lastActive = new Date();
+        this.teamMemberService.updateMember(matchedMember);
+        
+        return { success: true, message: 'Login successful!' };
+      }
       
-      // Set the current user
-      this.currentUser = this.mapFirebaseUserToAuthUser(user, userProfile);
-      
-      return { success: true, message: 'Login successful!' };
+      return { success: false, message: 'Firebase not configured and no matching mock user found.' };
     } catch (error: any) {
       console.error('Error in login:', error);
       
@@ -167,6 +196,22 @@ class AuthService {
    */
   public async loginWithGithub(): Promise<{ success: boolean; message: string; user?: AuthUser }> {
     try {
+      if (!firebaseConfigured || !auth) {
+        // Demo mode fallback for GitHub login
+        const demoUser: AuthUser = {
+          id: 'demo-github',
+          name: 'GitHub Demo User',
+          email: '',
+          role: 'user',
+          isAuthenticated: true,
+          isAdmin: false,
+          skills: [],
+          tools: [],
+          githubUsername: 'demo'
+        };
+        this.currentUser = demoUser;
+        return { success: true, message: 'Logged in with GitHub (demo mode)', user: demoUser };
+      }
       const provider = new GithubAuthProvider();
       provider.addScope('user');
       provider.addScope('repo');
@@ -179,7 +224,10 @@ class AuthService {
       
       // The signed-in user info
       const user = result.user;
-      const githubUsername = user.reloadUserInfo?.screenName;
+      // Access the Github username from the provider data or providerData
+      const githubUsername = (user.providerData[0]?.providerId === 'github.com') ? 
+        user.providerData[0].displayName : 
+        (user as any).reloadUserInfo?.screenName || user.displayName;
       
       // Check if user exists in Firestore
       let userProfile = await this.getUserProfile(user.uid);
@@ -242,6 +290,21 @@ class AuthService {
    */
   public async loginWithGoogle(): Promise<{ success: boolean; message: string; user?: AuthUser }> {
     try {
+      if (!firebaseConfigured || !auth) {
+        // Demo mode fallback for Google login
+        const demoUser: AuthUser = {
+          id: 'demo-google',
+          name: 'Google Demo User',
+          email: '',
+          role: 'user',
+          isAuthenticated: true,
+          isAdmin: false,
+          skills: [],
+          tools: [],
+        };
+        this.currentUser = demoUser;
+        return { success: true, message: 'Logged in with Google (demo mode)', user: demoUser };
+      }
       const provider = new GoogleAuthProvider();
       provider.addScope('profile');
       provider.addScope('email');
@@ -334,6 +397,7 @@ class AuthService {
         uid: user.uid,
         name: userData.name,
         email: userData.email,
+        phoneNumber: userData.phoneNumber || '',
         role: 'user',
         skills: userData.skills || [],
         tools: userData.tools || [],
@@ -393,6 +457,9 @@ class AuthService {
    */
   public async forgotPassword(email: string): Promise<{ success: boolean; message: string }> {
     try {
+      if (!firebaseConfigured || !auth) {
+        throw new Error('Firebase not configured');
+      }
       await sendPasswordResetEmail(auth, email);
       return { success: true, message: 'Password reset email sent!' };
     } catch (error: any) {
@@ -423,7 +490,9 @@ class AuthService {
    */
   public async logout(): Promise<void> {
     try {
-      await signOut(auth);
+      if (firebaseConfigured && auth) {
+        await signOut(auth);
+      }
       this.currentUser = null;
     } catch (error) {
       console.error('Error in logout:', error);
@@ -435,8 +504,9 @@ class AuthService {
   /**
    * Get user profile from Firestore
    */
-  public async getUserProfile(userId: string): Promise<any> {
+  public async getUserProfile(userId: string): Promise<Record<string, any>> {
     try {
+  if (!firebaseConfigured || !firestore) throw new Error('Firebase not configured');
       const docRef = doc(firestore, 'users', userId);
       const docSnap = await getDoc(docRef);
       
@@ -444,11 +514,11 @@ class AuthService {
         return docSnap.data();
       } else {
         console.log('No user profile found!');
-        return null;
+        return {};
       }
     } catch (error) {
       console.error('Error getting user profile:', error);
-      return null;
+      return {};
     }
   }
 
@@ -457,6 +527,7 @@ class AuthService {
    */
   public async updateUserProfile(userId: string, profileData: Partial<AuthUser>): Promise<boolean> {
     try {
+  if (!firebaseConfigured || !firestore) throw new Error('Firebase not configured');
       const docRef = doc(firestore, 'users', userId);
       
       // Prepare update data (remove id and authentication status)
@@ -511,9 +582,9 @@ class AuthService {
    */
   public async findUsersBySkills(skills: string[]): Promise<AuthUser[]> {
     try {
-      if (!skills.length) return [];
-      
-      const usersRef = collection(firestore, 'users');
+  if (!skills.length) return [];
+  if (!firebaseConfigured || !firestore) throw new Error('Firebase not configured');
+  const usersRef = collection(firestore, 'users');
       const usersList: AuthUser[] = [];
       
       // For each skill, find users that have it
@@ -525,7 +596,7 @@ class AuthService {
         );
         
         const querySnapshot = await getDocs(q);
-        querySnapshot.forEach(doc => {
+        querySnapshot.forEach((doc: any) => {
           const userData = doc.data();
           
           // Check if this user is already in our list
@@ -574,8 +645,52 @@ class AuthService {
       }
     }
   }
-}
 
-export default AuthService;
+  /**
+   * Verify password reset token
+   * @param token Reset token
+   * @returns Success or failure result
+   */
+  public async verifyResetToken(token: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // In a real application, you would verify the token with your backend
+      // For this demo, we'll simulate token verification
+      
+      // Check if token is valid (simple validation for demo purposes)
+      if (token && token.length > 20) {
+        return { success: true, message: 'Token verified' };
+      } else {
+        return { success: false, message: 'Invalid token' };
+      }
+    } catch (error) {
+      console.error('Error verifying reset token:', error);
+      return { success: false, message: 'Failed to verify token' };
+    }
+  }
+
+  /**
+   * Reset password with token
+   * @param token Reset token
+   * @param newPassword New password
+   * @returns Success or failure result
+   */
+  public async resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // In a real application, you would verify the token and reset the password in your backend
+      // For this demo, we'll simulate a password reset
+      
+      // Check if token is valid (simple validation for demo purposes)
+      if (token && token.length > 20) {
+        // In a real app, this would update the user's password in the database
+        return { success: true, message: 'Password reset successfully' };
+      } else {
+        return { success: false, message: 'Invalid or expired token' };
+      }
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      return { success: false, message: 'Failed to reset password' };
+    }
+  }
+}
 
 export default AuthService;

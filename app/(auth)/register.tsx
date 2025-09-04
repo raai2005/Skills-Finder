@@ -1,111 +1,69 @@
 import React, { useState } from 'react';
-import { StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { Link, router } from 'expo-router';
+import { StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { Link, useRouter } from 'expo-router';
 
-import { ThemedText } from '@/c          <ThemedView style={styles.loginContainer}>
-            <ThemedText>Already have an account? </ThemedText>
-            <Link href="/(auth)/login" asChild>
-              <TouchableOpacity>
-                <ThemedText style={styles.loginLink}>Login</ThemedText>
-              </TouchableOpacity>
-            </Link>
-          </ThemedView>
-          
-          <ThemedView style={styles.socialLoginNote}>
-            <ThemedText style={styles.socialLoginNoteText}>
-              You can also register using GitHub or Google from the login screen.
-            </ThemedText>
-          </ThemedView>
-        </ThemedView>/ThemedText';
+import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { HelloWave } from '@/components/HelloWave';
 import { useAuth } from '@/contexts/AuthContext';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function RegisterScreen() {
+  const [name, setName] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const colorScheme = useColorScheme();
   const { register } = useAuth();
-  
-  const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-  });
-  
-  const [isLoading, setIsLoading] = useState(false);
-  
-  const handleInputChange = (field: string, value: string) => {
-    setFormData({
-      ...formData,
-      [field]: value
-    });
-  };
-  
-  const validateForm = () => {
-    // Simple validation
-    if (!formData.firstName.trim()) {
-      Alert.alert('Error', 'First name is required');
-      return false;
-    }
-    
-    if (!formData.lastName.trim()) {
-      Alert.alert('Error', 'Last name is required');
-      return false;
-    }
-    
-    if (!formData.email.trim()) {
-      Alert.alert('Error', 'Email is required');
-      return false;
-    }
-    
-    // Simple email validation
-    const emailRegex = /\S+@\S+\.\S+/;
-    if (!emailRegex.test(formData.email)) {
-      Alert.alert('Error', 'Please enter a valid email');
-      return false;
-    }
-    
-    if (!formData.password) {
-      Alert.alert('Error', 'Password is required');
-      return false;
-    }
-    
-    if (formData.password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
-      return false;
-    }
-    
-    if (formData.password !== formData.confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return false;
-    }
-    
-    return true;
-  };
-  
+  const router = useRouter();
+
   const handleRegister = async () => {
-    if (!validateForm()) {
+    // Validate inputs
+    if (!name || !phoneNumber || !email || !password || !confirmPassword) {
+      Alert.alert('Error', 'Please fill in all fields');
       return;
     }
-    
+
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
+    // Simple email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
+    // Simple phone validation (adjust based on your requirements)
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phoneNumber)) {
+      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+      return;
+    }
+
     setIsLoading(true);
-    
+
     try {
       const result = await register({
-        name: formData.firstName + ' ' + formData.lastName,
-        email: formData.email,
-        password: formData.password,
-        skills: [], // Empty array for skills
-        tools: []   // Empty array for tools
+        name,
+        email,
+        password,
+        phoneNumber,
+        skills: [],
+        tools: []
       });
       
       if (result.success) {
-        // Registration successful, navigate to the next screen
-        // This happens automatically due to the isAuthenticated state change
+        Alert.alert('Success', 'Your account has been created!', [
+          { text: 'OK', onPress: () => router.push('/(tabs)') }
+        ]);
       } else {
-        Alert.alert('Error', result.message || 'Registration failed');
+        Alert.alert('Registration Failed', result.message);
       }
     } catch (error) {
       Alert.alert('Error', 'An unexpected error occurred');
@@ -116,16 +74,14 @@ export default function RegisterScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContainer}>
+    <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
       <ThemedView style={styles.container}>
+        <HelloWave size={80} style={styles.wave} />
+        
         <ThemedText style={styles.title}>Create Account</ThemedText>
-        <ThemedText style={styles.subtitle}>
-          Sign up to discover hackathons, join teams, and borrow tools
-        </ThemedText>
+        <ThemedText style={styles.subtitle}>Join SkillsFinder and connect with talented team members</ThemedText>
         
         <ThemedView style={styles.formContainer}>
-          <ThemedText style={styles.sectionTitle}>Personal Information</ThemedText>
-          
           <TextInput
             style={[
               styles.input,
@@ -135,10 +91,10 @@ export default function RegisterScreen() {
                 borderColor: Colors[colorScheme ?? 'light'].border
               }
             ]}
-            placeholder="First Name"
+            placeholder="Full Name"
             placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
-            value={formData.firstName}
-            onChangeText={(text) => handleInputChange('firstName', text)}
+            value={name}
+            onChangeText={setName}
           />
           
           <TextInput
@@ -150,13 +106,12 @@ export default function RegisterScreen() {
                 borderColor: Colors[colorScheme ?? 'light'].border
               }
             ]}
-            placeholder="Last Name"
+            placeholder="Phone Number"
             placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
-            value={formData.lastName}
-            onChangeText={(text) => handleInputChange('lastName', text)}
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            keyboardType="phone-pad"
           />
-          
-          <ThemedText style={styles.sectionTitle}>Account Details</ThemedText>
           
           <TextInput
             style={[
@@ -167,10 +122,10 @@ export default function RegisterScreen() {
                 borderColor: Colors[colorScheme ?? 'light'].border
               }
             ]}
-            placeholder="Email"
+            placeholder="Email (User ID)"
             placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
-            value={formData.email}
-            onChangeText={(text) => handleInputChange('email', text)}
+            value={email}
+            onChangeText={setEmail}
             autoCapitalize="none"
             keyboardType="email-address"
           />
@@ -186,8 +141,8 @@ export default function RegisterScreen() {
             ]}
             placeholder="Password"
             placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
-            value={formData.password}
-            onChangeText={(text) => handleInputChange('password', text)}
+            value={password}
+            onChangeText={setPassword}
             secureTextEntry
           />
           
@@ -202,8 +157,8 @@ export default function RegisterScreen() {
             ]}
             placeholder="Confirm Password"
             placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
-            value={formData.confirmPassword}
-            onChangeText={(text) => handleInputChange('confirmPassword', text)}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
             secureTextEntry
           />
           
@@ -220,19 +175,32 @@ export default function RegisterScreen() {
             </ThemedText>
           </TouchableOpacity>
           
+          <ThemedView style={styles.divider}>
+            <ThemedView style={styles.dividerLine} />
+            <ThemedText style={styles.dividerText}>OR</ThemedText>
+            <ThemedView style={styles.dividerLine} />
+          </ThemedView>
+          
+          <ThemedText style={styles.socialLoginText}>
+            You can also sign up later using:
+          </ThemedText>
+          
+          <ThemedView style={styles.socialOptions}>
+            <ThemedText style={styles.socialOption}>• GitHub</ThemedText>
+            <ThemedText style={styles.socialOption}>• Google</ThemedText>
+          </ThemedView>
+          
+          <ThemedText style={styles.noteText}>
+            Note: Social login options are available on the login page.
+          </ThemedText>
+          
           <ThemedView style={styles.loginContainer}>
             <ThemedText>Already have an account? </ThemedText>
             <Link href="/(auth)/login" asChild>
               <TouchableOpacity>
-                <ThemedText style={styles.loginLink}>Log In</ThemedText>
+                <ThemedText style={styles.loginLink}>Login</ThemedText>
               </TouchableOpacity>
             </Link>
-          </ThemedView>
-          
-          <ThemedView style={styles.socialLoginNote}>
-            <ThemedText style={styles.socialLoginNoteText}>
-              You can also register using GitHub or Google from the login screen.
-            </ThemedText>
           </ThemedView>
         </ThemedView>
       </ThemedView>
@@ -241,24 +209,23 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  scrollContainer: {
-    flexGrow: 1,
-  },
   container: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
   },
+  wave: {
+    marginBottom: 10,
+  },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     marginBottom: 8,
-    marginTop: 40,
   },
   subtitle: {
     fontSize: 16,
-    marginBottom: 30,
+    marginBottom: 24,
     textAlign: 'center',
   },
   formContainer: {
@@ -274,12 +241,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 16,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginTop: 8,
-    marginBottom: 8,
-  },
   button: {
     width: '100%',
     height: 50,
@@ -293,24 +254,48 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+    width: '100%',
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e0e0e0',
+  },
+  dividerText: {
+    marginHorizontal: 10,
+    fontSize: 14,
+    color: '#888888',
+  },
+  socialLoginText: {
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  socialOptions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  socialOption: {
+    marginHorizontal: 10,
+    fontWeight: '600',
+  },
+  noteText: {
+    textAlign: 'center',
+    fontSize: 12,
+    color: '#888888',
+    marginBottom: 20,
+  },
   loginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 30,
-    marginBottom: 40,
+    marginTop: 10,
   },
   loginLink: {
     fontWeight: 'bold',
     color: Colors.light.tint,
-  },
-  socialLoginNote: {
-    marginTop: 10,
-    marginBottom: 30,
-    alignItems: 'center',
-  },
-  socialLoginNoteText: {
-    fontSize: 12,
-    color: '#888888',
-    textAlign: 'center',
   },
 });

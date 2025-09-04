@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { StyleSheet, TextInput, TouchableOpacity, Image, ScrollView, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, TextInput, TouchableOpacity, Image, ScrollView, Alert, Switch } from 'react-native';
 import { Stack, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -7,34 +7,42 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-
-// Mock data for the current user profile
-const CURRENT_USER = {
-  id: '1',
-  name: 'Alex Johnson',
-  email: 'alex.johnson@example.com',
-  avatar: 'https://picsum.photos/id/1027/300/300',
-  role: 'Software Engineer',
-  company: 'TechInnovate',
-  location: 'San Francisco, CA',
-  bio: 'Full-stack developer with a passion for AI and machine learning. Always looking to collaborate on innovative projects.',
-  skills: ['React Native', 'TypeScript', 'Node.js', 'Python', 'TensorFlow', 'AWS'],
-  interests: ['AI', 'Mobile Dev', 'IoT', 'Robotics'],
-};
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function EditProfileScreen() {
   const colorScheme = useColorScheme();
+  const { user, updateProfile } = useAuth();
   
   const [formData, setFormData] = useState({
-    name: CURRENT_USER.name,
-    email: CURRENT_USER.email,
-    role: CURRENT_USER.role,
-    company: CURRENT_USER.company,
-    location: CURRENT_USER.location,
-    bio: CURRENT_USER.bio,
-    skills: CURRENT_USER.skills.join(', '),
-    interests: CURRENT_USER.interests.join(', '),
+    name: user?.name || '',
+    email: user?.email || '',
+    phoneNumber: '',
+    password: '',
+    confirmPassword: '',
+    bio: 'Full-stack developer with a passion for AI and machine learning.',
+    skills: (user?.skills || []).join(', '),
+    tools: (user?.tools || []).join(', '),
+    linkedin: '',
+    github: user?.githubUsername || '',
+    website: ''
   });
+  
+  // State for toggling password change
+  const [changePassword, setChangePassword] = useState(false);
+  
+  // State for toggling sections
+  const [expandedSections, setExpandedSections] = useState({
+    basicInfo: true,
+    socialLinks: true,
+    skills: true
+  });
+  
+  useEffect(() => {
+    // Fetch the user profile data when the component mounts
+    if (user) {
+      // Fetch additional profile data from your service if needed
+    }
+  }, [user]);
   
   const handleChange = (key: string, value: string) => {
     setFormData(prev => ({
@@ -43,26 +51,66 @@ export default function EditProfileScreen() {
     }));
   };
   
-  const handleSave = () => {
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section as keyof typeof prev]: !prev[section as keyof typeof prev]
+    }));
+  };
+  
+  const handleSave = async () => {
     // Validate the form
     if (!formData.name.trim() || !formData.email.trim()) {
       Alert.alert('Error', 'Name and email are required');
       return;
     }
     
-    // Simulate API call
-    setTimeout(() => {
-      Alert.alert(
-        'Success', 
-        'Profile updated successfully',
-        [
-          {
-            text: 'OK',
-            onPress: () => router.back(),
-          }
-        ]
-      );
-    }, 500);
+    // Password validation
+    if (changePassword) {
+      if (!formData.password) {
+        Alert.alert('Error', 'Please enter a new password');
+        return;
+      }
+      
+      if (formData.password !== formData.confirmPassword) {
+        Alert.alert('Error', 'Passwords do not match');
+        return;
+      }
+    }
+    
+    try {
+      // Prepare update data
+      const updateData = {
+        name: formData.name,
+        // Only include password if user is changing it
+        ...(changePassword && formData.password ? { password: formData.password } : {}),
+        // Parse skills and tools from comma-separated string to array
+        skills: formData.skills.split(',').map(s => s.trim()).filter(Boolean),
+        tools: formData.tools.split(',').map(t => t.trim()).filter(Boolean),
+      };
+      
+      if (user?.id) {
+        const success = await updateProfile(updateData);
+        
+        if (success) {
+          Alert.alert(
+            'Success', 
+            'Profile updated successfully',
+            [
+              {
+                text: 'OK',
+                onPress: () => router.back(),
+              }
+            ]
+          );
+        } else {
+          Alert.alert('Error', 'Failed to update profile');
+        }
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      Alert.alert('Error', 'An unexpected error occurred');
+    }
   };
   
   const handleChangePhoto = () => {
@@ -98,7 +146,7 @@ export default function EditProfileScreen() {
       <ScrollView style={styles.container}>
         <ThemedView style={styles.photoSection}>
           <Image 
-            source={{ uri: CURRENT_USER.avatar }} 
+            source={{ uri: user?.photoURL || 'https://picsum.photos/id/1027/300/300' }} 
             style={styles.avatar}
           />
           <TouchableOpacity
@@ -112,173 +160,306 @@ export default function EditProfileScreen() {
           </TouchableOpacity>
         </ThemedView>
         
-        <ThemedView style={styles.formSection}>
-          <ThemedView style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Name</ThemedText>
-            <TextInput
-              style={[
-                styles.input,
-                { 
-                  backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
-                  color: Colors[colorScheme ?? 'light'].text,
-                  borderColor: Colors[colorScheme ?? 'light'].border
-                }
-              ]}
-              value={formData.name}
-              onChangeText={(text) => handleChange('name', text)}
-              placeholder="Your name"
-              placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
-            />
-          </ThemedView>
-          
-          <ThemedView style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Email</ThemedText>
-            <TextInput
-              style={[
-                styles.input,
-                { 
-                  backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
-                  color: Colors[colorScheme ?? 'light'].text,
-                  borderColor: Colors[colorScheme ?? 'light'].border
-                }
-              ]}
-              value={formData.email}
-              onChangeText={(text) => handleChange('email', text)}
-              placeholder="Your email"
-              placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </ThemedView>
-          
-          <ThemedView style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Role</ThemedText>
-            <TextInput
-              style={[
-                styles.input,
-                { 
-                  backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
-                  color: Colors[colorScheme ?? 'light'].text,
-                  borderColor: Colors[colorScheme ?? 'light'].border
-                }
-              ]}
-              value={formData.role}
-              onChangeText={(text) => handleChange('role', text)}
-              placeholder="Your professional role"
-              placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
-            />
-          </ThemedView>
-          
-          <ThemedView style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Company</ThemedText>
-            <TextInput
-              style={[
-                styles.input,
-                { 
-                  backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
-                  color: Colors[colorScheme ?? 'light'].text,
-                  borderColor: Colors[colorScheme ?? 'light'].border
-                }
-              ]}
-              value={formData.company}
-              onChangeText={(text) => handleChange('company', text)}
-              placeholder="Your company or organization"
-              placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
-            />
-          </ThemedView>
-          
-          <ThemedView style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Location</ThemedText>
-            <TextInput
-              style={[
-                styles.input,
-                { 
-                  backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
-                  color: Colors[colorScheme ?? 'light'].text,
-                  borderColor: Colors[colorScheme ?? 'light'].border
-                }
-              ]}
-              value={formData.location}
-              onChangeText={(text) => handleChange('location', text)}
-              placeholder="Your location"
-              placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
-            />
-          </ThemedView>
-          
-          <ThemedView style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Bio</ThemedText>
-            <TextInput
-              style={[
-                styles.textArea,
-                { 
-                  backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
-                  color: Colors[colorScheme ?? 'light'].text,
-                  borderColor: Colors[colorScheme ?? 'light'].border
-                }
-              ]}
-              value={formData.bio}
-              onChangeText={(text) => handleChange('bio', text)}
-              placeholder="Write something about yourself"
-              placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-          </ThemedView>
-          
-          <ThemedView style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Skills (comma separated)</ThemedText>
-            <TextInput
-              style={[
-                styles.input,
-                { 
-                  backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
-                  color: Colors[colorScheme ?? 'light'].text,
-                  borderColor: Colors[colorScheme ?? 'light'].border
-                }
-              ]}
-              value={formData.skills}
-              onChangeText={(text) => handleChange('skills', text)}
-              placeholder="Your skills (comma separated)"
-              placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
-            />
-          </ThemedView>
-          
-          <ThemedView style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Interests (comma separated)</ThemedText>
-            <TextInput
-              style={[
-                styles.input,
-                { 
-                  backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
-                  color: Colors[colorScheme ?? 'light'].text,
-                  borderColor: Colors[colorScheme ?? 'light'].border
-                }
-              ]}
-              value={formData.interests}
-              onChangeText={(text) => handleChange('interests', text)}
-              placeholder="Your interests (comma separated)"
-              placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
-            />
-          </ThemedView>
-          
+        {/* Basic Information Section */}
+        <ThemedView style={styles.sectionHeader}>
           <TouchableOpacity 
-            style={[
-              styles.saveButton,
-              { backgroundColor: Colors[colorScheme ?? 'light'].tint }
-            ]}
-            onPress={handleSave}
+            style={styles.sectionTitleContainer}
+            onPress={() => toggleSection('basicInfo')}
           >
-            <ThemedText style={styles.saveButtonText}>Save Changes</ThemedText>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.cancelButton}
-            onPress={() => router.back()}
-          >
-            <ThemedText>Cancel</ThemedText>
+            <ThemedText style={styles.sectionTitle}>Basic Information</ThemedText>
+            <Ionicons 
+              name={expandedSections.basicInfo ? 'chevron-up' : 'chevron-down'} 
+              size={24} 
+              color={Colors[colorScheme ?? 'light'].text} 
+            />
           </TouchableOpacity>
         </ThemedView>
+        
+        {expandedSections.basicInfo && (
+          <ThemedView style={styles.formSection}>
+            <ThemedView style={styles.inputGroup}>
+              <ThemedText style={styles.label}>Name</ThemedText>
+              <TextInput
+                style={[
+                  styles.input,
+                  { 
+                    backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
+                    color: Colors[colorScheme ?? 'light'].text,
+                    borderColor: Colors[colorScheme ?? 'light'].border
+                  }
+                ]}
+                value={formData.name}
+                onChangeText={(text) => handleChange('name', text)}
+                placeholder="Your name"
+                placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
+              />
+            </ThemedView>
+            
+            <ThemedView style={styles.inputGroup}>
+              <ThemedText style={styles.label}>Email (User ID)</ThemedText>
+              <TextInput
+                style={[
+                  styles.input,
+                  { 
+                    backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
+                    color: Colors[colorScheme ?? 'light'].text,
+                    borderColor: Colors[colorScheme ?? 'light'].border
+                  }
+                ]}
+                value={formData.email}
+                onChangeText={(text) => handleChange('email', text)}
+                placeholder="Your email"
+                placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </ThemedView>
+            
+            <ThemedView style={styles.inputGroup}>
+              <ThemedText style={styles.label}>Phone Number</ThemedText>
+              <TextInput
+                style={[
+                  styles.input,
+                  { 
+                    backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
+                    color: Colors[colorScheme ?? 'light'].text,
+                    borderColor: Colors[colorScheme ?? 'light'].border
+                  }
+                ]}
+                value={formData.phoneNumber}
+                onChangeText={(text) => handleChange('phoneNumber', text)}
+                placeholder="Your phone number"
+                placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
+                keyboardType="phone-pad"
+              />
+            </ThemedView>
+            
+            <ThemedView style={styles.inputGroup}>
+              <ThemedView style={styles.rowBetween}>
+                <ThemedText style={styles.label}>Change Password</ThemedText>
+                <Switch
+                  value={changePassword}
+                  onValueChange={setChangePassword}
+                  trackColor={{ 
+                    false: '#767577', 
+                    true: Colors[colorScheme ?? 'light'].tint + '80'
+                  }}
+                  thumbColor={changePassword ? Colors[colorScheme ?? 'light'].tint : '#f4f3f4'}
+                />
+              </ThemedView>
+            </ThemedView>
+            
+            {changePassword && (
+              <>
+                <ThemedView style={styles.inputGroup}>
+                  <ThemedText style={styles.label}>New Password</ThemedText>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      { 
+                        backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
+                        color: Colors[colorScheme ?? 'light'].text,
+                        borderColor: Colors[colorScheme ?? 'light'].border
+                      }
+                    ]}
+                    value={formData.password}
+                    onChangeText={(text) => handleChange('password', text)}
+                    placeholder="Enter new password"
+                    placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
+                    secureTextEntry
+                  />
+                </ThemedView>
+                
+                <ThemedView style={styles.inputGroup}>
+                  <ThemedText style={styles.label}>Confirm Password</ThemedText>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      { 
+                        backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
+                        color: Colors[colorScheme ?? 'light'].text,
+                        borderColor: Colors[colorScheme ?? 'light'].border
+                      }
+                    ]}
+                    value={formData.confirmPassword}
+                    onChangeText={(text) => handleChange('confirmPassword', text)}
+                    placeholder="Confirm new password"
+                    placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
+                    secureTextEntry
+                  />
+                </ThemedView>
+              </>
+            )}
+            
+            <ThemedView style={styles.inputGroup}>
+              <ThemedText style={styles.label}>Bio</ThemedText>
+              <TextInput
+                style={[
+                  styles.textArea,
+                  { 
+                    backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
+                    color: Colors[colorScheme ?? 'light'].text,
+                    borderColor: Colors[colorScheme ?? 'light'].border
+                  }
+                ]}
+                value={formData.bio}
+                onChangeText={(text) => handleChange('bio', text)}
+                placeholder="Tell us about yourself"
+                placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+              />
+            </ThemedView>
+          </ThemedView>
+        )}
+        
+        {/* Social Links Section */}
+        <ThemedView style={styles.sectionHeader}>
+          <TouchableOpacity 
+            style={styles.sectionTitleContainer}
+            onPress={() => toggleSection('socialLinks')}
+          >
+            <ThemedText style={styles.sectionTitle}>Social Links</ThemedText>
+            <Ionicons 
+              name={expandedSections.socialLinks ? 'chevron-up' : 'chevron-down'} 
+              size={24} 
+              color={Colors[colorScheme ?? 'light'].text} 
+            />
+          </TouchableOpacity>
+        </ThemedView>
+        
+        {expandedSections.socialLinks && (
+          <ThemedView style={styles.formSection}>
+            <ThemedView style={styles.inputGroup}>
+              <ThemedText style={styles.label}>LinkedIn</ThemedText>
+              <TextInput
+                style={[
+                  styles.input,
+                  { 
+                    backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
+                    color: Colors[colorScheme ?? 'light'].text,
+                    borderColor: Colors[colorScheme ?? 'light'].border
+                  }
+                ]}
+                value={formData.linkedin}
+                onChangeText={(text) => handleChange('linkedin', text)}
+                placeholder="LinkedIn profile URL"
+                placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
+                autoCapitalize="none"
+              />
+            </ThemedView>
+            
+            <ThemedView style={styles.inputGroup}>
+              <ThemedText style={styles.label}>GitHub</ThemedText>
+              <TextInput
+                style={[
+                  styles.input,
+                  { 
+                    backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
+                    color: Colors[colorScheme ?? 'light'].text,
+                    borderColor: Colors[colorScheme ?? 'light'].border
+                  }
+                ]}
+                value={formData.github}
+                onChangeText={(text) => handleChange('github', text)}
+                placeholder="GitHub username"
+                placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
+                autoCapitalize="none"
+              />
+            </ThemedView>
+            
+            <ThemedView style={styles.inputGroup}>
+              <ThemedText style={styles.label}>Website</ThemedText>
+              <TextInput
+                style={[
+                  styles.input,
+                  { 
+                    backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
+                    color: Colors[colorScheme ?? 'light'].text,
+                    borderColor: Colors[colorScheme ?? 'light'].border
+                  }
+                ]}
+                value={formData.website}
+                onChangeText={(text) => handleChange('website', text)}
+                placeholder="Personal website URL"
+                placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
+                autoCapitalize="none"
+              />
+            </ThemedView>
+          </ThemedView>
+        )}
+        
+        {/* Skills & Tools Section */}
+        <ThemedView style={styles.sectionHeader}>
+          <TouchableOpacity 
+            style={styles.sectionTitleContainer}
+            onPress={() => toggleSection('skills')}
+          >
+            <ThemedText style={styles.sectionTitle}>Skills & Tools</ThemedText>
+            <Ionicons 
+              name={expandedSections.skills ? 'chevron-up' : 'chevron-down'} 
+              size={24} 
+              color={Colors[colorScheme ?? 'light'].text} 
+            />
+          </TouchableOpacity>
+        </ThemedView>
+        
+        {expandedSections.skills && (
+          <ThemedView style={styles.formSection}>
+            <ThemedView style={styles.inputGroup}>
+              <ThemedText style={styles.label}>Skills</ThemedText>
+              <TextInput
+                style={[
+                  styles.textArea,
+                  { 
+                    backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
+                    color: Colors[colorScheme ?? 'light'].text,
+                    borderColor: Colors[colorScheme ?? 'light'].border
+                  }
+                ]}
+                value={formData.skills}
+                onChangeText={(text) => handleChange('skills', text)}
+                placeholder="Enter your skills (comma separated)"
+                placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+            </ThemedView>
+            
+            <ThemedView style={styles.inputGroup}>
+              <ThemedText style={styles.label}>Tools</ThemedText>
+              <TextInput
+                style={[
+                  styles.textArea,
+                  { 
+                    backgroundColor: Colors[colorScheme ?? 'light'].inputBackground,
+                    color: Colors[colorScheme ?? 'light'].text,
+                    borderColor: Colors[colorScheme ?? 'light'].border
+                  }
+                ]}
+                value={formData.tools}
+                onChangeText={(text) => handleChange('tools', text)}
+                placeholder="Enter tools you can provide (comma separated)"
+                placeholderTextColor={Colors[colorScheme ?? 'light'].placeholderText}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+            </ThemedView>
+          </ThemedView>
+        )}
+        
+        <TouchableOpacity
+          style={[
+            styles.saveButton,
+            { backgroundColor: Colors[colorScheme ?? 'light'].tint }
+          ]}
+          onPress={handleSave}
+        >
+          <ThemedText style={styles.saveButtonText}>Save Profile</ThemedText>
+        </TouchableOpacity>
       </ScrollView>
     </>
   );
@@ -287,10 +468,11 @@ export default function EditProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    padding: 16,
   },
   photoSection: {
     alignItems: 'center',
-    paddingVertical: 24,
+    marginBottom: 24,
   },
   avatar: {
     width: 120,
@@ -299,58 +481,72 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   changePhotoButton: {
+    paddingHorizontal: 20,
     paddingVertical: 8,
-    paddingHorizontal: 16,
     borderRadius: 20,
   },
   changePhotoText: {
     color: 'white',
-    fontWeight: '500',
+    fontWeight: '600',
+  },
+  sectionHeader: {
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  sectionTitleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
   },
   formSection: {
-    padding: 16,
+    marginBottom: 24,
   },
   inputGroup: {
     marginBottom: 16,
   },
+  rowBetween: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 16,
     marginBottom: 8,
+    fontWeight: '500',
   },
   input: {
-    height: 46,
+    height: 50,
     borderWidth: 1,
     borderRadius: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     fontSize: 16,
   },
   textArea: {
     minHeight: 100,
     borderWidth: 1,
     borderRadius: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingTop: 12,
+    paddingBottom: 12,
     fontSize: 16,
   },
   saveButton: {
     height: 50,
     borderRadius: 8,
-    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 16,
+    justifyContent: 'center',
+    marginTop: 8,
+    marginBottom: 30,
   },
   saveButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
-  },
-  cancelButton: {
-    height: 50,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 24,
   },
 });

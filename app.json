@@ -37,6 +37,16 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+      },
+      "extra": {
+        "firebase": {
+          "apiKey": "AIzaSyDcD2oXs5CSWdmNIM0Yiw1BQbhZZCwsGzg",
+          "authDomain": "skills-finder-app.firebaseapp.com",
+          "projectId": "skills-finder-app",
+          "storageBucket": "skills-finder-app.appspot.com",
+          "messagingSenderId": "413602064994",
+          "appId": "1:413602064994:web:ff56871b70d00525d13f3b"
+        }
+      }
   }
 }

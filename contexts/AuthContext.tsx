@@ -12,6 +12,8 @@ interface AuthContextType {
   loginWithGoogle: () => Promise<{ success: boolean; message: string; user?: AuthUser }>;
   register: (userData: RegisterUserData) => Promise<{ success: boolean; message: string }>;
   forgotPassword: (email: string) => Promise<{ success: boolean; message: string }>;
+  verifyResetToken: (token: string) => Promise<{ success: boolean; message: string }>;
+  resetPassword: (token: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   updateProfile: (profileData: Partial<AuthUser>) => Promise<boolean>;
   findUsersBySkills: (skills: string[]) => Promise<AuthUser[]>;
@@ -22,6 +24,7 @@ export interface RegisterUserData {
   name: string;
   email: string;
   password: string;
+  phoneNumber?: string;
   skills: string[];
   tools: string[];
 }
@@ -36,6 +39,8 @@ const AuthContext = createContext<AuthContextType>({
   loginWithGoogle: async () => ({ success: false, message: 'Not implemented' }),
   register: async () => ({ success: false, message: 'Not implemented' }),
   forgotPassword: async () => ({ success: false, message: 'Not implemented' }),
+  verifyResetToken: async () => ({ success: false, message: 'Not implemented' }),
+  resetPassword: async () => ({ success: false, message: 'Not implemented' }),
   logout: async () => {},
   updateProfile: async () => false,
   findUsersBySkills: async () => [],
@@ -127,6 +132,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const findUsersBySkills = async (skills: string[]) => {
     return await authService.findUsersBySkills(skills);
   };
+  
+  // Verify reset token
+  const verifyResetToken = async (token: string) => {
+    return await authService.verifyResetToken(token);
+  };
+  
+  // Reset password
+  const resetPassword = async (token: string, newPassword: string) => {
+    return await authService.resetPassword(token, newPassword);
+  };
 
   const value = {
     user,
@@ -137,6 +152,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     loginWithGoogle,
     register,
     forgotPassword,
+    verifyResetToken,
+    resetPassword,
     logout,
     updateProfile,
     findUsersBySkills,

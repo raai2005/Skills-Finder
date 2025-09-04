@@ -171,6 +171,7 @@ export default function HomeScreen() {
     service.getMemberById('1') || {
       id: '1',
       name: 'Alice Smith',
+      email: 'alice@example.com',
       skills: ['React', 'Python'],
       tools: ['Laptop', 'Camera'],
       willingToHelp: true,

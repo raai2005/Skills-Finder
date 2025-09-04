@@ -330,11 +330,8 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
-    elevation: 2,
+  boxShadow: '0px 1px 1.41px rgba(0,0,0,0.2)',
+  elevation: 2,
   },
   repoHeader: {
     flexDirection: 'row',
