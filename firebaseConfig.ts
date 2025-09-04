@@ -8,13 +8,12 @@ import Constants from 'expo-constants';
 // NOTE: This is a placeholder configuration for development
 // For production, use environment variables and don't commit actual API keys
 const firebaseConfig = {
-  apiKey: "AIzaSyDevelopmentKeyPlaceholder123",
-  authDomain: "skills-finder-dev.firebaseapp.com",
-  projectId: "skills-finder-dev",
-  storageBucket: "skills-finder-dev.appspot.com",
-  messagingSenderId: "123456789012",
-  appId: "1:123456789012:web:abcdef1234567890",
-  measurementId: "G-ABCDEFGHIJ",
+  "apiKey": process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  "authDomain": process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  "projectId": process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  "storageBucket": process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  "messagingSenderId": process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  "appId": process.env.EXPO_PUBLIC_FIREBASE_APP_ID
 };
 
 // Initialize Firebase
